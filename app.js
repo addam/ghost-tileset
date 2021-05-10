@@ -1,8 +1,10 @@
 const fs = require("fs")
 const express = require("express")
+const cors = require("cors")
 const microdb = require("./microdb")
 
 const app = express()
+app.use(cors())
 const cache = new microdb()
 
 const baseUrl = "/home/mycity/beta/3dtiles"
