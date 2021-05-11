@@ -1,34 +1,48 @@
+const path = require("path")
+const url = require("url")
 const fs = require("fs")
 const express = require("express")
 const cors = require("cors")
-const microdb = require("./microdb")
+const Microdb = require("./microdb")
+const Filters = require("./filters")
+
+const baseUrl = "/home/mycity/beta/3dtiles"
+
+function loadTileset(url) {
+  const data = fs.readFileSync(`${baseUrl}/${url}`, {encoding: "utf-8"})
+  const result = JSON.parse(data)
+  result.path = path.dirname(url)
+  return result
+}
+
+const cache = new Microdb(loadTileset)
+const filters = new Filters(cache)
 
 const app = express()
 app.use(cors())
-const cache = new microdb()
 
-const baseUrl = "/home/mycity/beta/3dtiles"
+app.use(function (req, res, next) {
+  req.query = url.parse(req.url).query
+  next()
+});
 
 function invalidRequest(res, err) {
   console.error(err)
   res.status(500).end()
 }
 
-function loadTileset(id) {
-  const path = `${baseUrl}/${id}`
-  const data = fs.readFileSync(`${path}/tileset.json`, {encoding: "utf-8"})
-  const result = JSON.parse(data)
-  result.path = path
-  return result
-}
-
-app.get("/3dtiles/:tileset/*", (req, res) => {
+app.get("/3dtiles/*", (req, res) => {
   try {
-    const tileset = cache.getdefault(req.params.tileset, loadTileset)
-    if (req.params[0] === "tileset.json") {
+    const path = req.params[0]
+    if (path.endsWith("/tileset.json")) {
+      let tileset = cache.getDefault(path)
+      for (const code of req.query.split("&")) {
+        const [name, ...args] = code.split(/[=:]/)
+        tileset = filters[name](tileset, ...args)
+      }
       res.json(tileset)
     } else {
-      res.sendFile(req.params[0], {root: tileset.path})
+      res.sendFile(path, {root: baseUrl})
     }
   } catch (err) {
     invalidRequest(res, err)

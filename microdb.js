@@ -1,9 +1,10 @@
 module.exports = class MicroDb {
-  constructor() {
+  constructor(defaultFunc) {
     this.cacheTimeoutMilliseconds = 3600 * 1000
     this.lastCacheCleanup = new Date()
     this.content = new Map()
     this.time = new Map()
+    this.defaultFunc = defaultFunc
   }
 
   cleanupCache() {
@@ -30,10 +31,10 @@ module.exports = class MicroDb {
     return this.content.get(id)
   }
 
-  getdefault(id, func) {
+  getDefault(id, func) {
     let result = this.read(id)
     if (result === undefined) {
-      result = func(id)
+      result = (func || this.defaultFunc)(id)
       this.create(id, result)
     }
     return result
