@@ -37,7 +37,7 @@ app.get("/3dtiles/*", (req, res) => {
     if (path.endsWith("/tileset.json")) {
       let tileset = cache.getDefault(path)
       for (const code of req.query.split("&")) {
-        const [name, ...args] = code.split(/=|%3A/)
+        const [name, ...args] = code.split(/=|:|%3A/)
         tileset = filters[name](tileset, ...args)
       }
       res.json(tileset)
