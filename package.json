@@ -2,7 +2,7 @@
   "name": "ghost-tileset",
   "version": "1.0.0",
   "description": "Change the structure of an existing tileset while it's being served",
-  "main": "app.js",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon app.js"

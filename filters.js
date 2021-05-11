@@ -8,7 +8,7 @@ class Filters {
   constructor(db) {
     this.db = db
   }
-  
+
   _fetchChildren(node, rootPath, cwd) {
     for (const child of node.children || []) {
       this._fetchChildren(child, rootPath, cwd)
@@ -70,7 +70,7 @@ class Filters {
     }
     return tileset
   }
-  
+
   v(tileset) {
     return tileset
   }
