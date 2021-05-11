@@ -32,6 +32,18 @@ class Filters {
     return tileset
   }
 
+  _exponential(node, base, factor) {
+    node.geometricError = base
+    for (const child of node.children || []) {
+      this._exponential(child, base / factor, factor)
+    }
+  }
+
+  exponential(tileset, base, factor) {
+    this._exponential(tileset.root, base, factor)
+    return tileset
+  }
+
   nop(tileset) {
     return tileset
   }
