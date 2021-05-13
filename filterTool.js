@@ -3,6 +3,9 @@ const path = require("path")
 const Filters = require("./filters")
 
 // USAGE: node filterTool.js (source) (destination) (filter:option[:option...]) [...]
+// loads the (source) tileset, processes it through all the listed filters and stores the result in (destination)
+// EXAMPLE:
+// node filterTool.js /home/mycity/beta/3dtiles/sb20/1.json /home/mycity/beta/3dtiles/sb20/tree.json fetch quickTree:3 exponential:2:2
 
 const source = process.argv[2]
 const dst = process.argv[3]

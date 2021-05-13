@@ -2,9 +2,11 @@ const fs = require("fs")
 const path = require("path")
 const {boundingRegion} = require("./util")
 
-// USAGE: node mergeTool.js directory [geometricError]
+// USAGE: node mergeTool.js (directory) [(geometricError)]
 // tileset.json is created in directory by merging all tileset.json files in child directories (only depth 1)
+// files with names other than "tileset.json" are ignored
 
+// EXAMPLE
 // assuming that we have a lot of tilesets /home/mycity/beta/3dtiles/trees/Instanced0/tileset.json .. /InstancedZZX/tileset.json
 // then this command:
 // node mergeTool.js /home/mycity/beta/3dtiles/trees/

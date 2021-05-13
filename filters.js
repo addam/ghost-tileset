@@ -5,7 +5,7 @@ function jsonClone(obj) {
   return JSON.parse(JSON.stringify(obj))
 }
 
-function leaves(tileset) {
+function contentful(tileset) {
   const result = []
   const remaining = [tileset.root]
   while (remaining.length) {
@@ -99,7 +99,7 @@ class Filters {
   }
 
   quickTree(tileset, compressLevels) {
-    const nodes = leaves(tileset)
+    const nodes = contentful(tileset)
     const root = this._quickTree(nodes, compressLevels, 0)[0]
     return {asset: tileset.asset, root}
   }
