@@ -53,9 +53,11 @@ class Filters {
   }
 
   _exponential(node, base, factor) {
-    node.geometricError = base
-    for (const child of node.children || []) {
-      this._exponential(child, base / factor, factor)
+    if (node.children) {
+      const top = Math.max(base, ...node.children.map(child => this._exponential(child, base, factor)))
+      return (node.geometricError = top * factor)
+    } else {
+      return node.geometricError = 0
     }
   }
 
