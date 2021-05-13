@@ -1,7 +1,22 @@
 const path = require("path")
+const {isTileset, boundingRegion} = require("./util")
 
 function jsonClone(obj) {
   return JSON.parse(JSON.stringify(obj))
+}
+
+function leaves(tileset) {
+  const result = []
+  const remaining = [tileset.root]
+  while (remaining.length) {
+    const node = remaining.pop()
+    if (node.content) {
+      result.push(node)
+    } else {
+      remaining.push(...(node.children || []))
+    }
+  }
+  return result
 }
 
 class Filters {
@@ -15,7 +30,7 @@ class Filters {
     }
     if (node.content && node.content.url) {
       const subUrl = path.join(cwd, node.content.url)
-      if (path.basename(node.content.url) === "tileset.json") {
+      if (isTileset(node.content.url)) {
         const sub = this.db.getDefault(subUrl)
         const subCwd = path.dirname(subUrl)
         this._fetchChildren(sub.root, rootPath, subCwd)
@@ -50,18 +65,8 @@ class Filters {
     return tileset
   }
 
-  _growRoot(node) {
-    for (const child of node.children || []) {
-      this._growRoot(child)
-    }
-    if (node.content && node.content.url && path.basename(node.content.url) === "tileset.json") {
-      node.content.url += "?growRoot"
-    }
-  }
-
   growRoot(tileset, geometricError) {
     tileset = jsonClone(tileset)
-    //this._growRoot(tileset.root)
     tileset.root = {
       boundingVolume: jsonClone(tileset.root.boundingVolume),
       geometricError,
@@ -69,6 +74,32 @@ class Filters {
       refine: "ADD",
     }
     return tileset
+  }
+
+  _quickTree(nodes, compressLevels, depth) {
+    if (nodes.length <= 1<<depth) {
+      return nodes
+    }
+    const region = boundingRegion(nodes)
+    const co = (region[2] - region[0] > region[3] - region[1]) ? 0: 1
+    nodes.sort((a, b) => a.boundingVolume.region[co] - b.boundingVolume.region[co])
+    const children = [nodes.splice(0, nodes.length / 2), nodes]
+      .flatMap(slice => this._quickTree(slice, compressLevels, (depth || compressLevels) - 1))
+    if (depth == 0) {
+      return [{
+        geometricError: 0,
+        boundingVolume: { region },
+        refine: "ADD",
+        children,
+      }]
+    }
+    return children
+  }
+
+  quickTree(tileset, compressLevels) {
+    const nodes = leaves(tileset)
+    const root = this._quickTree(nodes, compressLevels, 0)[0]
+    return {asset: tileset.asset, root}
   }
 
   v(tileset) {

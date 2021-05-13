@@ -11,7 +11,8 @@
   "license": "WTFPL",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "got": "^9.6.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.7"
