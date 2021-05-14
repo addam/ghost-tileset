@@ -1,5 +1,5 @@
 const path = require("path")
-const {isTileset, boundingRegion} = require("./util")
+const {urlDirname, isTileset, boundingRegion} = require("./util")
 
 function jsonClone(obj) {
   return JSON.parse(JSON.stringify(obj))
@@ -24,29 +24,29 @@ class Filters {
     this.db = db
   }
 
+  // cwd: path relative to baseUrl
+  // {baseUrl}/{cwd}/tileset.json is the file being processed
   _fetchChildren(node, rootPath, cwd) {
     for (const child of node.children || []) {
       this._fetchChildren(child, rootPath, cwd)
     }
     if (node.content && node.content.url) {
-      const subUrl = path.join(cwd, node.content.url)
+      const subUrl = (cwd) ? `${cwd}/${node.content.url}`: node.content.url
       if (isTileset(node.content.url)) {
         const sub = this.db.getDefault(subUrl)
-        const subCwd = path.dirname(subUrl)
+        const subCwd = urlDirname(subUrl)
         this._fetchChildren(sub.root, rootPath, subCwd)
         node.children = node.children || []
         node.children.push(jsonClone(sub.root))
         delete node.content
-      } else {
+      } else if (rootPath) {
         // {tileset.path}/{node.content.url} = subUrl
-        node.content.url = path.relative(rootPath, subUrl)
+        node.content.url = path.posix.relative(rootPath, subUrl)
       }
     }
   }
 
   fetch(tileset) {
-    // cwd: path relative to baseUrl
-    // {baseUrl}/{cwd}/tileset.json is the file being processed
     tileset = jsonClone(tileset)
     this._fetchChildren(tileset.root, tileset.path, tileset.path)
     return tileset

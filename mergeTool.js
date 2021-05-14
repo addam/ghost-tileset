@@ -17,7 +17,7 @@ const geometricError = Number(process.argv[3]) || 15
 
 function makeRelativeUrl(node, dir) {
   if (node.content && node.content.url) {
-    node.content.url = path.join(dir, node.content.url)
+    node.content.url = `${dir}/{node.content.url}`
   }
   for (const child of node.children || []) {
     makeRelativeUrl(child)

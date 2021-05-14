@@ -11,7 +11,12 @@ module.exports = {
     }
     return [low[0], low[1], high[0], high[1], low[2], high[2]]
   },
-  
+
+  // given an url that ends in a filename, strips the filename off
+  urlDirname(url) {
+    return url.replace(/(.*\/).*/, "$1")
+  },
+
   isTileset(url) {
     return path.basename(url).split("?")[0].endsWith(".json")
   }

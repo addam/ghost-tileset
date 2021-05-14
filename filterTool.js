@@ -13,17 +13,13 @@ const operations = process.argv.slice(4).map(code => code.split(/=|:|%3A/))
 
 const baseUrl = path.dirname(source)
 
+// TODO baseUrl will not work properly with double-nested tilesets
 function loadTileset(url) {
-  const data = fs.readFileSync(`${baseUrl}/${url}`, {encoding: "utf-8"})
-  const result = JSON.parse(data)
-  result.path = path.dirname(url)
-  return result
+  const data = fs.readFileSync(path.join(baseUrl, url), {encoding: "utf-8"})
+  return JSON.parse(data)
 }
 
-const loader = {
-  getDefault: loadTileset
-}
-const filters = new Filters(loader)
+const filters = new Filters({getDefault: loadTileset})
 
 let tileset = loadTileset(path.basename(source))
 for (const [name, ...args] of operations) {

@@ -40,4 +40,3 @@ async function grab(url) {
 }
 
 grab(source).then(process.exit)
-
