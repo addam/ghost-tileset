@@ -14,10 +14,14 @@ module.exports = {
 
   // given an url that ends in a filename, strips the filename off
   urlDirname(url) {
-    return url.replace(/(.*\/).*/, "$1")
+    return url.replace(/(.*)\/.*/, "$1")
   },
 
   isTileset(url) {
     return path.basename(url).split("?")[0].endsWith(".json")
+  },
+
+  jsonClone(obj) {
+    return JSON.parse(JSON.stringify(obj))
   }
 }

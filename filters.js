@@ -1,9 +1,5 @@
 const path = require("path")
-const {urlDirname, isTileset, boundingRegion} = require("./util")
-
-function jsonClone(obj) {
-  return JSON.parse(JSON.stringify(obj))
-}
+const {jsonClone, urlDirname, isTileset, boundingRegion} = require("./util")
 
 function contentful(tileset) {
   const result = []
@@ -26,29 +22,28 @@ class Filters {
 
   // cwd: path relative to baseUrl
   // {baseUrl}/{cwd}/tileset.json is the file being processed
-  _fetchChildren(node, rootPath, cwd) {
+  async _fetchChildren(node, cwd) {
     for (const child of node.children || []) {
-      this._fetchChildren(child, rootPath, cwd)
+      await this._fetchChildren(child, cwd)
     }
     if (node.content && node.content.url) {
       const subUrl = (cwd) ? `${cwd}/${node.content.url}`: node.content.url
       if (isTileset(node.content.url)) {
-        const sub = this.db.getDefault(subUrl)
         const subCwd = urlDirname(subUrl)
-        this._fetchChildren(sub.root, rootPath, subCwd)
+        const sub = jsonClone(await this.db.getDefault(subUrl))
+        this._fetchChildren(sub.root, subCwd)
         node.children = node.children || []
-        node.children.push(jsonClone(sub.root))
+        node.children.push(sub.root)
         delete node.content
-      } else if (rootPath) {
-        // {tileset.path}/{node.content.url} = subUrl
-        node.content.url = path.posix.relative(rootPath, subUrl)
+      } else if (cwd) {
+        // {cwd}/{node.content.url} = subUrl
+        node.content.url = path.posix.relative(cwd, subUrl)
       }
     }
   }
 
-  fetch(tileset) {
-    tileset = jsonClone(tileset)
-    this._fetchChildren(tileset.root, tileset.path, tileset.path)
+  async fetch(tileset) {
+    await this._fetchChildren(tileset.root, tileset.path)
     return tileset
   }
 
@@ -61,14 +56,13 @@ class Filters {
     }
   }
 
-  exponential(tileset, base, factor) {
-    tileset = jsonClone(tileset)
+  async exponential(tileset, base, factor) {
     this._exponential(tileset.root, base, factor)
+    tileset.geometricError = tileset.root.geometricError
     return tileset
   }
 
-  growRoot(tileset, geometricError) {
-    tileset = jsonClone(tileset)
+  async growRoot(tileset, geometricError) {
     tileset.root = {
       boundingVolume: jsonClone(tileset.root.boundingVolume),
       geometricError,
@@ -98,13 +92,13 @@ class Filters {
     return children
   }
 
-  quickTree(tileset, compressLevels) {
+  async quickTree(tileset, compressLevels) {
     const nodes = contentful(tileset)
     const root = this._quickTree(nodes, compressLevels, 0)[0]
     return {asset: tileset.asset, root}
   }
 
-  v(tileset) {
+  async v(tileset) {
     return tileset
   }
 }

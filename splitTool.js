@@ -7,7 +7,7 @@ const {boundingRegion} = require("./util")
 // the cut is automatic so that all these files contain roughly the same number of nodes
 
 // EXAMPLE:
-// node splitTool.js /home/mycity/beta/3dtiles/sb20/tree.json /home/mycity/beta/3dtiles/sb20/split/
+// node splitTool.js /home/me/3dtiles/houses/tree.json /home/me/3dtiles/houses/split/
 
 const source = process.argv[2]
 const destination = process.argv[3]
@@ -70,4 +70,5 @@ const master = JSON.parse(data)
 const maxSize = Math.sqrt(8 * countLeaves(master.root))
 prune(master.root, destination, maxSize)
 console.log("master leaves:", countLeaves(master.root))
+fs.mkdirSync(destination, {recursive: true})
 fs.writeFileSync(path.join(destination, "tileset.json"), JSON.stringify(master))

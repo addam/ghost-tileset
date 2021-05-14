@@ -7,10 +7,10 @@ const {boundingRegion} = require("./util")
 // files with names other than "tileset.json" are ignored
 
 // EXAMPLE
-// assuming that we have a lot of tilesets /home/mycity/beta/3dtiles/trees/Instanced0/tileset.json .. /InstancedZZX/tileset.json
+// assuming that we have a lot of tilesets /home/me/3dtiles/houses/Instanced0/tileset.json .. /InstancedZZX/tileset.json
 // then this command:
-// node mergeTool.js /home/mycity/beta/3dtiles/trees/
-// ...will write to /home/mycity/beta/3dtiles/trees/tileset.json
+// node mergeTool.js /home/me/3dtiles/houses/
+// ...will write to /home/me/houses/tileset.json
 
 const dir = process.argv[2]
 const geometricError = Number(process.argv[3]) || 15

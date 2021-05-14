@@ -2,17 +2,17 @@
   "name": "ghost-tileset",
   "version": "1.0.0",
   "description": "Change the structure of an existing tileset while it's being served",
-  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon app.js"
+    "start": "nodemon index.js"
   },
   "author": "",
   "license": "WTFPL",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.17.1",
-    "got": "^9.6.0"
+    "got": "^9.6.0",
+    "request": "^2.88.2"
   },
   "devDependencies": {
     "nodemon": "^2.0.7"

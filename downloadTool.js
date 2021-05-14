@@ -5,7 +5,7 @@ const got = require("got")
 // USAGE: node downloadTool.js (url) (dir)
 // downloads the tileset (url), all child tilesets and re-links all content to absolute urls to (dir)
 // EXAMPLE:
-// node downloadTool.js https://data.luucy.ch/3dobjects/sb20/tileset.json /home/mycity/beta/3dtiles/sb20
+// node downloadTool.js https://vectortiles100.geo.admin.ch/3d-tiles/ch.swisstopo.swisstlm3d.3d/20201020/tileset.json /home/me/3dtiles/houses
 
 // NOTE: all i/o is synchronous -- although there are some await's in the code
 const source = process.argv[2]
@@ -39,4 +39,5 @@ async function grab(url) {
   return name
 }
 
+fs.mkdirSync(dir, {recursive: true})
 grab(source).then(process.exit)

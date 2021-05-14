@@ -5,7 +5,7 @@ const Filters = require("./filters")
 // USAGE: node filterTool.js (source) (destination) (filter:option[:option...]) [...]
 // loads the (source) tileset, processes it through all the listed filters and stores the result in (destination)
 // EXAMPLE:
-// node filterTool.js /home/mycity/beta/3dtiles/sb20/1.json /home/mycity/beta/3dtiles/sb20/tree.json fetch quickTree:3 exponential:2:2
+// node filterTool.js /home/me/3dtiles/houses/tileset.json /home/me/3dtiles/houses/tree.json fetch quickTree:3 exponential:2:2
 
 const source = process.argv[2]
 const dst = process.argv[3]
@@ -25,4 +25,5 @@ let tileset = loadTileset(path.basename(source))
 for (const [name, ...args] of operations) {
   tileset = filters[name](tileset, ...args)
 }
+fs.mkdirSync(dirname(dst), {recursive: true})
 fs.writeFileSync(dst, JSON.stringify(tileset))

@@ -31,10 +31,11 @@ module.exports = class MicroDb {
     return this.content.get(id)
   }
 
-  getDefault(id, func) {
+  async getDefault(...ids) {
+    const id = ids.join("/")
     let result = this.read(id)
     if (result === undefined) {
-      result = (func || this.defaultFunc)(id)
+      result = await this.defaultFunc(...ids)
       this.create(id, result)
     }
     return result

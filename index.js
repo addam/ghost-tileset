@@ -1,21 +1,29 @@
 const path = require("path")
 const url = require("url")
-const fs = require("fs")
 const express = require("express")
 const cors = require("cors")
+const got = require("got")
+const request = require("request")
 const Microdb = require("./microdb")
 const Filters = require("./filters")
+const {isTileset, jsonClone, urlDirname} = require("./util")
 
-const baseUrl = "/home/mycity/beta/3dtiles"
+// USAGE: node index.js (baseUrl) [(port)]
+// creates a proxy for the (baseUrl) tileset folder
+// the tilesets can be accessed on localhost:(port)/(tilesetName)?(filter:option:option[...])
+// while being loaded, the tileset is processed by the filters on the fly
 
-function loadTileset(url) {
-  const data = fs.readFileSync(`${baseUrl}/${url}`, {encoding: "utf-8"})
-  const result = JSON.parse(data)
-  result.path = path.dirname(url)
-  return result
+const source = process.argv[2]
+const baseUrl = source.includes("://") ? source : (path.sep == "/") ? `file://${source}` : `file://${source.replace(path.sep, "/")}`
+const port = process.argv[3] || process.env.PORT || 3000
+
+async function getTileset(url) {
+  console.log(`load ${baseUrl}/${url}`)
+  const response = await got(`${baseUrl}/${url}`, {json: true})
+  return response.body
 }
 
-const cache = new Microdb(loadTileset)
+const cache = new Microdb(getTileset)
 const filters = new Filters(cache)
 
 const app = express()
@@ -31,29 +39,31 @@ function invalidRequest(res, err) {
   res.status(500).end()
 }
 
-app.get("/3dtiles/*", (req, res) => {
+app.get("/", (req, res) => {
+  res.send("<!doctype html><a href='20201020/tileset.json'>Swiss houses</a>")
+})
+
+app.get("/*", async (req, res) => {
   try {
     const path = req.params[0]
-    if (path.endsWith("/tileset.json")) {
-      let tileset = cache.getDefault(path)
-      for (const code of req.query.split("&")) {
+    if (isTileset(path)) {
+      let tileset = await cache.getDefault(path)
+      tileset = jsonClone(tileset)
+      tileset.path = urlDirname(path)
+      for (const code of (req.query ? req.query.split("&") : [])) {
         const [name, ...args] = code.split(/=|:|%3A/)
-        tileset = filters[name](tileset, ...args)
+        tileset = await filters[name](tileset, ...args)
       }
       res.json(tileset)
     } else {
-      res.sendFile(path, {root: baseUrl})
+      console.log(`proxy ${baseUrl}/${path}`)
+      request(`${baseUrl}/${path}`).pipe(res)
     }
   } catch (err) {
     invalidRequest(res, err)
   }
 })
 
-app.get("/", (req, res) => {
-  res.send("<!doctype html><a href='/3dtiles/2884/tileset.json'>Swiss buildings</a>, <a href='/3dtiles/trees/tileset.json'>Trees</a>")
-})
-
-var port = process.env.PORT || 3000
 app.listen(port)
 console.log(`ghost-tileset running on http://localhost:${port}`)
 
