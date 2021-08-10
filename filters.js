@@ -1,6 +1,7 @@
 const path = require("path")
 const {jsonClone, urlDirname, isTileset, boundingRegion} = require("./util")
 
+// collect all ancestors that have content
 function contentful(tileset) {
   const result = []
   const remaining = [tileset.root]
