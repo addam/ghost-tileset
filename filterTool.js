@@ -1,4 +1,5 @@
 const fs = require("fs")
+const fsp = fs.promises
 const path = require("path")
 const Filters = require("./filters")
 
@@ -14,16 +15,20 @@ const operations = process.argv.slice(4).map(code => code.split(/=|:|%3A/))
 const baseUrl = path.dirname(source)
 
 // TODO baseUrl will not work properly with double-nested tilesets
-function loadTileset(url) {
-  const data = fs.readFileSync(path.join(baseUrl, url), {encoding: "utf-8"})
+async function loadTileset(url) {
+  const data = await fsp.readFile(path.join(baseUrl, url), {encoding: "utf-8"})
   return JSON.parse(data)
 }
 
-const filters = new Filters({getDefault: loadTileset})
+async function main(source) {
+  const filters = new Filters({getDefault: loadTileset})
 
-let tileset = loadTileset(path.basename(source))
-for (const [name, ...args] of operations) {
-  tileset = filters[name](tileset, ...args)
+  let tileset = await loadTileset(path.basename(source))
+  for (const [name, ...args] of operations) {
+    tileset = await filters[name](tileset, ...args)
+  }
+  await fsp.mkdir(path.dirname(dst), {recursive: true})
+  await fsp.writeFile(dst, JSON.stringify(tileset))
 }
-fs.mkdirSync(dirname(dst), {recursive: true})
-fs.writeFileSync(dst, JSON.stringify(tileset))
+
+main(source).then(process.exit)

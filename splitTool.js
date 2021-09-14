@@ -68,7 +68,7 @@ function prune(node, destination, maxSize) {
 const data = fs.readFileSync(source, {encoding: "utf-8"})
 const master = JSON.parse(data)
 const maxSize = Math.sqrt(8 * countLeaves(master.root))
+fs.mkdirSync(destination, {recursive: true})
 prune(master.root, destination, maxSize)
 console.log("master leaves:", countLeaves(master.root))
-fs.mkdirSync(destination, {recursive: true})
 fs.writeFileSync(path.join(destination, "tileset.json"), JSON.stringify(master))
