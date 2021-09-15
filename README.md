@@ -77,9 +77,10 @@ node filterTool.js /home/me/3dtiles/sb20/1.json /home/me/3dtiles/sb20/tree.json 
 ```
 
 ## splitTool
-`node splitTool.js (tileset) (directory)` \
-splits (tileset) into a master tileset.json and a number of child tilesets, all stored in (directory)
-the cut is automatic so that all these files contain roughly the same number of nodes
+`node splitTool.js (tileset) (directory) [(splitCount)]` \
+splits (tileset) into a master tileset.json and a number of child tilesets, all stored in (directory).
+the cuts are automatic so that the root and all child files contain roughly the same number of nodes.
+if `splitCount` is supplied and more than 1, several layers will be created
 
 ```
 node splitTool.js /home/me/3dtiles/sb20/tree.json /home/me/3dtiles/sb20/split/

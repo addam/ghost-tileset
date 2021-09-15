@@ -2,15 +2,16 @@ const fs = require("fs")
 const path = require("path")
 const {boundingRegion} = require("./util")
 
-// USAGE: node splitTool.js (tileset) (directory)
+// USAGE: node splitTool.js (tileset) (directory) [split count]
 // splits (tileset) into a master tileset.json and a number of child tilesets, all stored in (directory)
-// the cut is automatic so that all these files contain roughly the same number of nodes
+// the cuts are automatic so that the root and all child files contain roughly the same number of nodes
 
 // EXAMPLE:
-// node splitTool.js /home/me/3dtiles/houses/tree.json /home/me/3dtiles/houses/split/
+// node splitTool.js /home/me/3dtiles/houses/tree.json /home/me/3dtiles/houses/split/ 1
 
 const source = process.argv[2]
 const destination = process.argv[3]
+const splitCount = Number(process.argv[4] || 1)
 var num = 1
 
 function countLeaves(root) {
@@ -46,29 +47,29 @@ function subTileset(node, destination) {
   return name
 }
 
+// returns count of child files in this subtree
+// if this subtree has been cut away, the count is 1
 function prune(node, destination, maxSize) {
   if (!node.children || !node.children.length) {
     return 1
   }
   const sizes = node.children.map(child => prune(child, destination, maxSize))
-  const sum = sizes.reduce((a, b) => a + b, 0)
-  if (sizes.some(x => x === -1) || sum > maxSize) {
-    for (let i=0; i<sizes.length; i++) {
-      if (sizes[i] !== -1) {
-        const child = node.children[i]
-        child.content = {url: subTileset(child, destination)}
-        delete child.children
-      }
+  for (let i=0; i<sizes.length; i++) {
+    if (sizes[i] > maxSize) {
+      const child = node.children[i]
+      child.content = {url: subTileset(child, destination)}
+      delete child.children
+      sizes[i] = 1
     }
-    return -1
   }
-  return sum
+  return sizes.reduce((a, b) => a + b, 0)
 }
 
 const data = fs.readFileSync(source, {encoding: "utf-8"})
 const master = JSON.parse(data)
-const maxSize = Math.sqrt(8 * countLeaves(master.root))
+const origCount = countLeaves(master.root)
+const maxSize = Math.pow(origCount, 1 / (splitCount + 1))
 fs.mkdirSync(destination, {recursive: true})
 prune(master.root, destination, maxSize)
-console.log("master leaves:", countLeaves(master.root))
+console.log(`maxSize: ${maxSize} nodes, master leaves: ${countLeaves(master.root)} from original ${origCount}`)
 fs.writeFileSync(path.join(destination, "tileset.json"), JSON.stringify(master))
