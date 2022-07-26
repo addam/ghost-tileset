@@ -37,6 +37,11 @@ Each inner node will have `2**compressLevels` children, all of roughly the same 
 On each level, the nodes are sorted by `x` or `y` coordinate of their bounding boxes (always choosing the longer dimension of the whole set) and split into two halves at the median.
 Afterwards, every `compressLevels` consecutive levels are compressed into a node.
 
+## draco
+
+Process all `b3dm` content using Draco compression.
+Requires [gltf-pipeline](https://www.npmjs.com/package/gltf-pipeline) to be installed. The resulting files will be stored in their paths relatively to the destination directory so they will be overwritten if source and destination directory is the same.
+
 ## v
 
 No-operation. The tileset is passed without a change.

@@ -12,22 +12,18 @@ const source = process.argv[2]
 const dst = process.argv[3]
 const operations = process.argv.slice(4).map(code => code.split(/=|:|%3A/))
 
-const baseUrl = path.dirname(source)
-
-// TODO baseUrl will not work properly with double-nested tilesets
-async function loadTileset(url) {
-  const data = await fsp.readFile(path.join(baseUrl, url), {encoding: "utf-8"})
-  return JSON.parse(data)
-}
+const sourceDir = path.dirname(source)
+const dstDir = path.dirname(dst)
 
 async function main(source) {
-  const filters = new Filters({getDefault: loadTileset})
+  await fsp.mkdir(dstDir, {recursive: true})
+  const filters = new Filters({sourceDir, dstDir})
 
-  let tileset = await loadTileset(path.basename(source))
+  const data = await fsp.readFile(source, { encoding: "utf-8" })
+  let tileset = JSON.parse(data)
   for (const [name, ...args] of operations) {
     tileset = await filters[name](tileset, ...args)
   }
-  await fsp.mkdir(path.dirname(dst), {recursive: true})
   await fsp.writeFile(dst, JSON.stringify(tileset))
 }
 
