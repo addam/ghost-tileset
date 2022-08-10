@@ -6,12 +6,16 @@
 starts a web server on (port) which grabs and modifies tilesets on user demand.
 
 ```
-var tileset = new Cesium.Cesium3DTileset({ url: "http://localhost:3000/trees/tileset.json?fetch&quickTree:3&exponential:2:2"});
+var tileset = new Cesium.Cesium3DTileset({ url: "http://localhost:3000/tileset.json?fetch&quickTree:3&exponential:2:2"});
 ```
 
 # the filters
 
 There is a set of filters that can be specified either as URL parameters in the web service or as command line parameters for filterTool.
+
+## src
+
+Data source. Supports local files, web resources and local zip files.
 
 ## fetch
 
@@ -42,6 +46,12 @@ Afterwards, every `compressLevels` consecutive levels are compressed into a node
 Process all `b3dm` content using Draco compression.
 Requires [gltf-pipeline](https://www.npmjs.com/package/gltf-pipeline) to be installed. The resulting files will be stored in their paths relatively to the destination directory so they will be overwritten if source and destination directory is the same.
 
+## split
+
+Splits the tileset into a master tileset.json and a number of child tilesets.
+The cuts are automatic so that the root and all child files contain roughly the same number of nodes.
+
+
 ## v
 
 No-operation. The tileset is passed without a change.
@@ -51,14 +61,6 @@ This may be useful for some hacking but I don't remember what exactly.
 
 Following examples show how to grab a 3d tileset from web and optimize its structure.
 The result is a tileset stored on disk, ready to be served from anywhere.
-
-## downloadTool
-`node downloadTool.js (url) (dir)` \
-downloads the tileset (url) along with all child tilesets and re-links all content to absolute urls to (dir)
-
-```
-node downloadTool.js https://vectortiles100.geo.admin.ch/3d-tiles/ch.swisstopo.swisstlm3d.3d/20201020/tileset.json /home/me/3dtiles/sb20
-```
 
 ## mergeTool
 
@@ -72,21 +74,11 @@ then this command will create a new file `/home/me/houses/tileset.json`:
 node mergeTool.js /home/me/3dtiles/houses/
 ```
 
-
 ## filterTool
-`node filterTool.js (source) (destination) (filter:option[:option...]) [...]` \
+
+`node filterTool.js src:(source) (filter:option[:option...]) [...] (destination)` \
 loads the (source) tileset, processes it through all the listed filters and stores the result in (destination)
 
 ```
-node filterTool.js /home/me/3dtiles/sb20/1.json /home/me/3dtiles/sb20/tree.json fetch quickTree:3 exponential:2:2
-```
-
-## splitTool
-`node splitTool.js (tileset) (directory) [(splitCount)]` \
-splits (tileset) into a master tileset.json and a number of child tilesets, all stored in (directory).
-the cuts are automatic so that the root and all child files contain roughly the same number of nodes.
-if `splitCount` is supplied and more than 1, several layers will be created
-
-```
-node splitTool.js /home/me/3dtiles/sb20/tree.json /home/me/3dtiles/sb20/split/
+node filterTool.js src:/home/me/source/tileset.json quickTree:3 fetch exponential:2:2 split draco:12 /home/me/destination/tileset.json
 ```
