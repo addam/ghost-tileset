@@ -18,7 +18,7 @@ module.exports = {
   },
 
   isTileset(url) {
-    return path.basename(url).split("?")[0].endsWith(".json")
+    return url && path.basename(url).split("?")[0].endsWith(".json")
   },
 
   jsonClone(obj) {
