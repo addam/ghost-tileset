@@ -22,10 +22,10 @@ Data source. Supports local files, web resources and local zip files.
 Collect all ancestors into a single tileset.
 This may be necessary as a first operation for aggregate tilesets.
 
-## exponential:(factor):(base):(leaf)
+## exponential:(base):(factor):(jsonLeaf)
 
 Assign `geometricError` to each tile based on the subtree depth.
-Geometric error will be `leaf` at leaf nodes and `base * factor**depth` on all inner nodes.
+Geometric error will be `jsonLeaf` at leaf nodes with JSON content and `base * factor**depth` otherwise.
 Note, the depth of a node is determined by the longest path to a leaf.
 
 ## growRoot:(geometricError)

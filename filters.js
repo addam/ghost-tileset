@@ -14,31 +14,16 @@ function optionalRequire(module) {
 }
 
 // collect all ancestors that have no children
-function leaves(root) {
+function leaves(root, test=(node => !node.children)) {
   const result = []
   const remaining = [root]
   while (remaining.length) {
     const node = remaining.pop()
-    if (node.children) {
-      remaining.push(...node.children)
-    } else {
+    if (test(node)) {
       result.push(node)
+    } else {
+      remaining.push(...node.children)
     }
-  }
-  return result
-}
-
-// collect content from all nodes
-function b3dmContent(tileset) {
-  const result = []
-  const remaining = [tileset.root]
-  while (remaining.length) {
-    const node = remaining.pop()
-    const uri = contentUri(node)
-    if (uri.endsWith(".b3dm")) {
-      result.push(uri)
-    }
-    remaining.push(...(node.children || []))
   }
   return result
 }
@@ -46,7 +31,7 @@ function b3dmContent(tileset) {
 function contentUri(node, baseUrl) {
   const content = node.content || {}
   const uri = content.uri || content.url
-  return (uri === undefined || uri.match(/\w+:\/.*/)) ? uri : path.posix.join(baseUrl, uri)
+  return (uri === undefined || !baseUrl || uri.match(/\w+:\/.*/)) ? uri : path.posix.join(baseUrl, uri)
 }
 
 function systemPath(posixPath) {
@@ -151,15 +136,11 @@ fetch.json = fetch.b3dm = true
 /// Assign `geometricError` to each tile based on the subtree depth.
 /// Geometric error will be `leaf` at leaf nodes and `base * factor**elevation(node)` on all inner nodes.
 /// The elevation of a node is determined by the longest path to a leaf.
-function exponential(prev, factor=2, base=1, leaf=base) {
+function exponential(prev, base=1, factor=2, jsonLeaf=160) {
   function _exponential(node) {
-    if (node.children) {
-      const top = Math.max(base, ...node.children.map(child => _exponential(child)))
-      return (node.geometricError = top * factor)
-    } else {
-      node.geometricError = base
-      return 0
-    }
+    const here = isTileset(contentUri(node)) ? jsonLeaf : base
+    const top = node.children ? Math.max(...node.children.map(child => _exponential(child))) : 0
+    return (node.geometricError = Math.max(here, top) * factor)
   }
 
   return async(req) => {
@@ -214,7 +195,7 @@ async function quickTree(prev, compressLevels=3) {
 
   return async (req) => {
     const tileset = await prev(req)
-    const nodes = leaves(tileset.root)
+    const nodes = leaves(tileset.root, (node => node.content))
     const root = _quickTree(nodes, 0)[0]
     return {asset: tileset.asset, root}
   }
@@ -223,9 +204,9 @@ quickTree.json = true
 
 /// Process all `b3dm` content using Draco compression.
 /// Requires gltf-pipeline to be installed.
-async function draco(prev, quantization=8) {
+async function draco(prev, quantization=10) {
   function configDraco(c) {
-    return { compressionLevel: 7, quantizePositionBits: c+3, quantizeNormalBits: c, quantizeTexcoordBits: c+2, quantizeColorBits: c, quantizeGenericBits: c }
+    return { compressionLevel: 7, quantizePositionBits: c+6, quantizeNormalBits: c+2, quantizeTexcoordBits: c+4, quantizeColorBits: c, quantizeGenericBits: c+4 }
   }
 
   // returns offset to .glb data within a .b3dm file, in bytes
@@ -255,7 +236,7 @@ async function draco(prev, quantization=8) {
   return async (req) => {
     const b3dm = await prev(req)
     const glb = extractGlb(b3dm)
-    const dracoOptions = configDraco(Number(quantization))
+    const dracoOptions = configDraco(quantization)
     const dr = await gltfPipeline.processGlb(glb, { dracoOptions })
     return combineGlb(b3dm, dr.glb)
   }
