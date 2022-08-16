@@ -15,13 +15,18 @@ function contentUri(node) {
 }
 
 // collect content from all nodes
-function listFiles(tileset) {
+async function listFiles(tileset, source, baseUrl='') {
   const result = []
   const remaining = [tileset.root]
   while (remaining.length) {
     const node = remaining.pop()
     const uri = contentUri(node)
-    if (uri) {
+    if (isTileset(uri)) {
+      const child = await source(uri)
+      const childPath = path.posix.join(baseUrl, path.dirname(uri))
+      // FIXME dirname may not be applicable
+      result.push(...listFiles(child, source, childPath))
+    } else if (uri) {
       result.push(uri)
     }
     remaining.push(...(node.children || []))
@@ -43,7 +48,7 @@ async function main(operations, destination) {
   const pipeline = await buildPipeline(operations)
   const tileset = await pipeline(tilesetFile)
   await write(tilesetFile, tileset)
-  for (const target of listFiles(tileset)) {
+  for (const target of await listFiles(tileset, pipeline)) {
     const data = await pipeline(target)
     await write(target, data)
   }

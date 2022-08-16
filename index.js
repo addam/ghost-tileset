@@ -1,9 +1,6 @@
-const path = require("path")
 const url = require("url")
 const express = require("express")
 const cors = require("cors")
-const got = require("got")
-const request = require("request")
 const Cache = require("./microdb")
 const buildPipeline = require("./filters")
 const { isTileset, jsonClone, urlDirname } = require("./util")
@@ -14,7 +11,6 @@ const { isTileset, jsonClone, urlDirname } = require("./util")
 // while being loaded, the tileset is processed by the filters on the fly
 
 const source = process.argv[2]
-const baseUrl = source.includes("://") ? source : (path.sep == "/") ? `file://${source}` : `file://${source.replace(path.sep, "/")}`
 const port = process.argv[3] || process.env.PORT || 3000
 
 const app = express()
@@ -30,10 +26,14 @@ function invalidRequest(res, err) {
   res.status(500).end()
 }
 
+function tryParseNumber(value) {
+  return (isNaN(value) || value == "") ? value : Number(value)
+}
+
 function getPipeline(query) {
   // TODO forbid explicitly using the `src` filter
   const operations = (query ? query.split("&") : [])
-    .map(code => code.split(/=|:|%3A/));
+    .map(code => code.split(/=|:|%3A/).map(tryParseNumber));
   operations.unshift(["src", source])
   return buildPipeline(operations)
 }
@@ -41,17 +41,18 @@ getPipeline = Cache(getPipeline)
 
 app.get("/", (req, res) => {
   // TODO link to Sandcastle instead
-  res.send("<!doctype html><a href='20201020/tileset.json'>Swiss houses</a>")
+  res.send("<!doctype html><a href='https://sandcastle.cesium.com/#c=bZLRb9MwEMb/FStPmRScQCaBQjchtUj0oWgaEQgpL559XQ8cO5wvXQHtf8eux9TB/OAk5/vu931ytHeBxR7hDkhcCAd3YgkB51F+PtbKodDH76V3rNABDUUlfg9OCAaiWLkiv0cD1P0VagLF8MWTNX1uKc+qJCD4MUPga3CxfeMNdIJphsHdn70d3OCyCxk0OJBajUBKBuBkpDwSTVSjU4zePdKWiji+KdfKLflxBbcEEMo3sq3E+WvZVOIltJnvCSGGyPKTpB9AGXS3V8h6d+2tfTIoDnjxKm5NnhG996Rc2HoaHz1sFBMezuV69f5jv+6/Vs9HmghHZNxDkMqY8sRBfrSrHi3ExDntTLYTQ7Fjnrq6tl4ru/OBu7Zpmppzp/wWvBuKxEvABxwcOPosH4bn4hPE2oUJNHva4AFdUhZVIeJaBP5p4TLh03qH4+SJk5VSypphnGy821DfzPp7pOsQkviorE+lC4N7gebimb9HaKtCiCfb2dpP+AuG4nJRx/7/pOy9vVH0z/kf'>View in Sandcastle</a>")
 })
 
 app.get("/*", async (req, res) => {
   try {
-    const path = req.params[0]
+    const pth = req.params[0]
     const pipeline = await getPipeline(req.query)
-    const result = await pipeline(path)
-    if (isTileset(path)) {
+    const result = await pipeline(pth)
+    if (isTileset(pth)) {
       res.json(result)
     } else {
+      res.set('Content-Type', 'application/octet-stream')
       res.send(result)
     }
   } catch (err) {

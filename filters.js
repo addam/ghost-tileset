@@ -1,5 +1,6 @@
 const path = require("path")
 const fsp = require("fs").promises
+const got = require("got")
 const gltfPipeline = optionalRequire("gltf-pipeline")
 const { jsonClone, urlDirname, isTileset, boundingRegion } = require("./util")
 const Cache = require("./microdb")
@@ -62,8 +63,8 @@ async function src(prev, baseUrl, ...args) {
   let tilesetFile
 
   async function _httpSrc(req) {
-    const response = await got(`${baseUrl}/${filename}`, { json: !!req.endsWith(".json") })
-    return response.body
+    const responseType = req.endsWith(".json") ? 'json' : 'buffer'
+    return got(`${baseUrl}/${req}`, {responseType, resolveBodyOnly: true})
   }
 
   async function _7zSrc(req) {
@@ -117,20 +118,22 @@ src.json = src.b3dm = true
 /// This may be necessary as a first operation for aggregate tilesets.
 function fetch(prev) {
   async function _fetchChildren(node, baseUrl='') {
-    for (const child of node.children || []) {
-      await _fetchChildren(child, baseUrl)
-    }
-    const uri = contentUri(node, baseUrl)
-    if (isTileset(uri)) {
-      const subDir = path.posix.dirname(uri)
-      const sub = await prev(uri)
-      _fetchChildren(sub.root, subDir)
-      node.children = node.children || []
-      node.children.push(sub.root)
-      delete node.content
-    } else if (uri) {
-      const key = node.content.url ? "url" : "uri"
-      node.content[key] = uri
+    const remaining = [node]
+    while (remaining.length) {
+      node = remaining.pop()
+      remaining.push(...(node.children || []))
+      const uri = contentUri(node, baseUrl)
+      if (isTileset(uri)) {
+        const subDir = path.posix.dirname(uri)
+        const sub = await prev(uri)
+        _fetchChildren(sub.root, subDir)
+        node.children = node.children || []
+        node.children.push(sub.root)
+        delete node.content
+      } else if (uri) {
+        const key = node.content.url ? "url" : "uri"
+        node.content[key] = uri
+      }
     }
   }
 
@@ -148,13 +151,14 @@ fetch.json = fetch.b3dm = true
 /// Assign `geometricError` to each tile based on the subtree depth.
 /// Geometric error will be `leaf` at leaf nodes and `base * factor**elevation(node)` on all inner nodes.
 /// The elevation of a node is determined by the longest path to a leaf.
-function exponential(prev, base=2, factor=2, leaf=0) {
+function exponential(prev, factor=2, base=1, leaf=base) {
   function _exponential(node) {
     if (node.children) {
       const top = Math.max(base, ...node.children.map(child => _exponential(child)))
       return (node.geometricError = top * factor)
     } else {
-      return node.geometricError = leaf
+      node.geometricError = base
+      return 0
     }
   }
 
@@ -199,7 +203,7 @@ async function quickTree(prev, compressLevels=3) {
       .flatMap(slice => _quickTree(slice, (depth || compressLevels) - 1))
     if (depth == 0) {
       return [{
-        geometricError: 0,
+        geometricError: 1,
         boundingVolume: { region },
         refine: "ADD",
         children,
