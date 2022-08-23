@@ -35,9 +35,8 @@ function getParams(req) {
 
 function getPipeline(req) {
   // TODO forbid explicitly using the `src` filter, for security
-  const operations = getParams(req)
+  const operations = [source, ...getParams(req, source)]
     .map(code => code.split(/:|%3A/).map(tryParseNumber));
-  operations.unshift(["src", source])
   return buildPipeline(operations)
 }
 

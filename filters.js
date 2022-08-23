@@ -60,69 +60,72 @@ function systemPath(posixPath) {
   return posixPath.split(path.posix.sep).join(path.sep)
 }
 
-/// Add a data source. Shadows files defined by previous filters.
-// name always uses forward slash as directory separator
-async function src(prev, baseUrl, ...args) {
-  let tempDir
-  let tilesetFile
+function optionalJson(req, data) {
+  return isTileset(req) ? JSON.parse(data) : data
+}
 
-  async function _httpSrc(req) {
-    const responseType = req.endsWith(".json") ? 'json' : 'buffer'
-    try {
-      return await got(`${baseUrl}/${req}`, {responseType, resolveBodyOnly: true})
-    } catch (e) {
-      console.error("failed to get", baseUrl, req)
-      console.error(e)
-      return {}
+function httpFactory(protocol) {
+  function result(prev, tilesetPath) {
+    const tilesetFile = path.basename(tilesetPath)
+    const baseUrl = path.dirname(tilesetPath)
+    async function src(req) {
+      if (req == masterUrl) {
+        req = tilesetFile
+      }
+      const responseType = req.endsWith(".json") ? 'json' : 'buffer'
+      try {
+        return await got(`${protocol}:${baseUrl}/${req}`, {responseType, resolveBodyOnly: true})
+      } catch (e) {
+        console.error("failed to get", baseUrl, req)
+        console.error(e)
+        return {}
+      }
     }
+    return Cache(src, 5000)
   }
+  result.json = result.b3dm = true
+  return result
+}
+const http = httpFactory("http")
+const https = httpFactory("https")
 
-  async function _7zSrc(req) {
-    if (!tempDir) {
-      tempDir = await mkdtemp(path.join(os.tmpdir(), 'filterTool'))
-    }
+async function zip(prev, baseUrl, tilesetFile) {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'filterTool'))
+
+  function _7z(req) {
     return new Promise((resolve, reject) => {
       const stream = sevenZip.extractFull(baseUrl, tempDir, { include: [ req ] })
       stream.on('data', function ({ status, file }) {
         if (status == "extracted") {
           fsp.readFile(file).then((data) => {  // maybe { encoding: "utf-8" } ?
             fsp.unlink(file)
-            resolve(data)
+            resolve(optionalJson(req, data))
           })
         }
       })
     })
   }
 
-  async function _dirSrc(req) {
+  if (path.extname(baseUrl) == ".7z") {
+    return _7z
+  } else {
+    return _zip // TODO not implemented
+  }
+}
+zip.json = zip.b3dm = true
+
+async function file(prev, tilesetPath) {
+  const tilesetFile = path.basename(tilesetPath)
+  const baseUrl = path.dirname(tilesetPath)
+  return async(req) => {
     if (req == masterUrl) {
       req = tilesetFile
     }
     const data = await fsp.readFile(path.join(baseUrl, systemPath(req))) // maybe { encoding: "utf-8" } ?
-    return data
-  }
-
-  let fn
-  if (baseUrl.match(/^https?:\/\//)) {
-    return Cache(_httpSrc, 5000)
-  } else if (baseUrl.match(/.7z$/)) {
-    tilesetFile = args[0]
-    fn = _7zSrc
-  } else {
-    tilesetFile = path.basename(baseUrl)
-    baseUrl = path.dirname(baseUrl)
-    fn = _dirSrc
-  }
-
-  return async(req) => {
-    const result = await fn(req)
-    if (result) {
-      return isTileset(req) ? JSON.parse(result) : result
-    }
-    return prev(req)
+    return optionalJson(req, data)
   }
 }
-src.json = src.b3dm = true
+file.json = file.b3dm = true
 
 /// Collect all ancestors into a single tileset.
 /// This may be necessary as a first operation for aggregate tilesets.
@@ -391,7 +394,7 @@ function stripVersion(prev) {
 }
 stripVersion.json = true
 
-const filters = { draco, exponential, fetch, growRoot, quickTree, relative, split, src, stripVersion, v }
+const filters = { draco, exponential, fetch, growRoot, quickTree, relative, split, http, https, zip, file, stripVersion, v }
 
 function enabled(filter, req) {
   return (isTileset(req)) ? filter.json : filter.b3dm
@@ -413,7 +416,7 @@ const buildPipeline = Cache(async (operations) => {
   return (target) => enabled(filter, target) ? modify(target) : prev(target)
 })
 
-module.exports = async(...args) => {
+module.exports = verbose ? async(...args) => {
   optionalLog("build", ...args)
   const result = await buildPipeline(...args)
   optionalLog("done", ...args)
@@ -421,4 +424,4 @@ module.exports = async(...args) => {
     optionalLog("request", ...request)
     return result(...request)
   }
-}
+} : buildPipeline

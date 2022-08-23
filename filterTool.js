@@ -7,26 +7,25 @@ const buildPipeline = require("./filters")
 // loads the (source) tileset, processes it through all the listed filters and stores the result in (destination)
 // EXAMPLE:
 // node filterTool.js src:/home/me/source/tileset.json quickTree:3 fetch exponential:2:2 split draco:12 /home/me/destination/tileset.json
-// node filterTool.js src:/home/me/tileset.7z:tileset.json quickTree fetch exponential split draco /home/me/3dtiles/houses/tree.json
+// node filterTool.js src:/home/me/tileset.7z:tileset.json quickTree fetch relative exponential split draco /home/me/3dtiles/houses/tree.json
 
 function contentUri(node) {
   const content = node.content || {}
   return content.uri || content.url
 }
 
+function isRelative(uri) {
+  return uri && !uri.match(/^\w+:\//)
+}
+
 // collect content from all nodes
-async function listFiles(tileset, source, baseUrl='') {
+async function listFiles(tileset, pipeline) {
   const result = []
   const remaining = [tileset.root]
   while (remaining.length) {
     const node = remaining.pop()
     const uri = contentUri(node)
-    if (isTileset(uri)) {
-      const child = await source(uri)
-      const childPath = path.posix.join(baseUrl, path.dirname(uri))
-      // FIXME dirname may not be applicable
-      result.push(...listFiles(child, source, childPath))
-    } else if (uri) {
+    if (isRelative(uri)) {
       result.push(uri)
     }
     remaining.push(...(node.children || []))

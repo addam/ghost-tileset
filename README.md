@@ -9,13 +9,27 @@ starts a web server on (port) which grabs and modifies tilesets on user demand.
 var tileset = new Cesium.Cesium3DTileset({ url: "http://localhost:3000/tileset.json?fetch&quickTree:3&exponential:2:2"});
 ```
 
+The proxied url will always be `http://localhost:3000/tileset.json`, regardless of the original file name.
+
 # the filters
 
 There is a set of filters that can be specified either as URL parameters in the web service or as command line parameters for filterTool.
 
-## src
+## http/https:(url)
 
-Data source. Supports local files, web resources and local zip files.
+Web data source.
+All files are cached to make reloads as fast as possible.
+
+## file:(path)
+
+Local data source.
+For example: `file:/home/data/my-tileset.json`
+
+# zip:(zip file):(tileset.json file)
+
+Read content of an archive.
+Currently, only 7z archives are supported.
+The second parameter specifies the file name to be loaded from within the archive.
 
 ## fetch:(limit)
 
@@ -63,9 +77,8 @@ The cuts are automatic so that the root and all child files contain roughly the 
 
 ## v
 
-No-operation. The tileset is passed without a change.
-This mimics the "version" parameter used by some Cesium resources.
-It may also be handy for debugging.
+Enable verbose console output.
+All data is passed intact.
 
 ## stripVersion
 
@@ -90,9 +103,9 @@ node mergeTool.js /home/me/3dtiles/houses/
 
 ## filterTool
 
-`node filterTool.js src:(source) (filter:option[:option...]) [...] (destination)` \
+`node filterTool.js (source) (filter:option[:option...]) [...] (destination)` \
 loads the (source) tileset, processes it through all the listed filters and stores the result in (destination)
 
 ```
-node filterTool.js src:/home/me/source/tileset.json quickTree:3 fetch exponential:2:2 split draco:12 /home/me/destination/tileset.json
+node filterTool.js file:/home/me/source/tileset.json quickTree:3 fetch exponential:2:2 split draco:12 /home/me/destination/tileset.json
 ```
