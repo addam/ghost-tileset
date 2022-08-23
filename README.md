@@ -17,10 +17,12 @@ There is a set of filters that can be specified either as URL parameters in the 
 
 Data source. Supports local files, web resources and local zip files.
 
-## fetch
+## fetch:(limit)
 
 Collect all ancestors into a single tileset.
 This may be necessary as a first operation for aggregate tilesets.
+Relative urls are correctly updated.
+If `limit` is set, only this number of ancestors are unpacked, leaving the rest intact.
 
 ## exponential:(base):(factor):(jsonLeaf)
 
@@ -32,6 +34,7 @@ Note, the depth of a node is determined by the longest path to a leaf.
 
 Create a new root node.
 This new node has the original root as its only child and its geometric error is set as specified by the parameter.
+Sometimes, Cesium appears not to load aggregate tilesets correctly without this filter.
 
 ## quickTree:(compressLevels)
 
@@ -46,6 +49,12 @@ Afterwards, every `compressLevels` consecutive levels are compressed into a node
 Process all `b3dm` content using Draco compression.
 Requires [gltf-pipeline](https://www.npmjs.com/package/gltf-pipeline) to be installed. The resulting files will be stored in their paths relatively to the destination directory so they will be overwritten if source and destination directory is the same.
 
+## relative
+
+Make urls relative.
+All content will be accessible like `number`.`originalExtension`, where `number` is sequential enumeration starting from zero.
+When using filterTool to download a remote resource, this filter effectively causes the content to be downloaded too.
+
 ## split
 
 Splits the tileset into a master tileset.json and a number of child tilesets.
@@ -55,7 +64,12 @@ The cuts are automatic so that the root and all child files contain roughly the 
 ## v
 
 No-operation. The tileset is passed without a change.
-This may be useful for some hacking but I don't remember what exactly.
+This mimics the "version" parameter used by some Cesium resources.
+It may also be handy for debugging.
+
+## stripVersion
+
+Remove the "version" entry from the tileset.
 
 # command line tools
 

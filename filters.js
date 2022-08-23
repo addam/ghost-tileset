@@ -5,6 +5,15 @@ const gltfPipeline = optionalRequire("gltf-pipeline")
 const { jsonClone, urlDirname, isTileset, boundingRegion } = require("./util")
 const Cache = require("./microdb")
 
+const masterUrl = "tileset.json"
+
+let verbose = false
+function optionalLog(...args) {
+  if (verbose) {
+    console.log(new Date(), ...args)
+  }
+}
+
 function optionalRequire(module) {
   try {
     return require(module)
@@ -28,6 +37,16 @@ function leaves(root, test=(node => !node.children)) {
   return result
 }
 
+// iterate over all nodes
+function* nodes(root) {
+  const remaining = [root]
+  while (remaining.length) {
+    const node = remaining.pop()
+    yield node
+    remaining.push(...(node.children || []))
+  }
+}
+
 function contentUri(node, baseUrl) {
   const content = node.content || {}
   const uri = content.uri || content.url
@@ -49,7 +68,13 @@ async function src(prev, baseUrl, ...args) {
 
   async function _httpSrc(req) {
     const responseType = req.endsWith(".json") ? 'json' : 'buffer'
-    return got(`${baseUrl}/${req}`, {responseType, resolveBodyOnly: true})
+    try {
+      return await got(`${baseUrl}/${req}`, {responseType, resolveBodyOnly: true})
+    } catch (e) {
+      console.error("failed to get", baseUrl, req)
+      console.error(e)
+      return {}
+    }
   }
 
   async function _7zSrc(req) {
@@ -70,7 +95,7 @@ async function src(prev, baseUrl, ...args) {
   }
 
   async function _dirSrc(req) {
-    if (req == "tileset.json") {
+    if (req == masterUrl) {
       req = tilesetFile
     }
     const data = await fsp.readFile(path.join(baseUrl, systemPath(req))) // maybe { encoding: "utf-8" } ?
@@ -79,7 +104,7 @@ async function src(prev, baseUrl, ...args) {
 
   let fn
   if (baseUrl.match(/^https?:\/\//)) {
-    return Cache(_httpSrc)
+    return Cache(_httpSrc, 5000)
   } else if (baseUrl.match(/.7z$/)) {
     tilesetFile = args[0]
     fn = _7zSrc
@@ -101,17 +126,21 @@ src.json = src.b3dm = true
 
 /// Collect all ancestors into a single tileset.
 /// This may be necessary as a first operation for aggregate tilesets.
-function fetch(prev) {
-  async function _fetchChildren(node, baseUrl='') {
-    const remaining = [node]
+function fetch(prev, limit=-1) {
+  let currentLimit
+  async function fetchChildren(root, baseUrl='') {
+    optionalLog("fetchChildren", root.children.length, baseUrl)
+    const remaining = [root]
     while (remaining.length) {
-      node = remaining.pop()
+      const node = remaining.pop()
       remaining.push(...(node.children || []))
       const uri = contentUri(node, baseUrl)
-      if (isTileset(uri)) {
+      if (isTileset(uri) && currentLimit != 0) {
+        currentLimit -= 1
         const subDir = path.posix.dirname(uri)
-        const sub = await prev(uri)
-        _fetchChildren(sub.root, subDir)
+        optionalLog(" fetch sub", uri)
+        const sub = jsonClone(await prev(uri))
+        fetchChildren(sub.root, subDir)
         node.children = node.children || []
         node.children.push(sub.root)
         delete node.content
@@ -123,9 +152,10 @@ function fetch(prev) {
   }
 
   return async(req) => {
+    currentLimit = limit
     if (isTileset(req)) {
-      const tileset = await prev(req)
-      await _fetchChildren(tileset.root)
+      const tileset = jsonClone(await prev(req))
+      await fetchChildren(tileset.root)
       return tileset
     }
     return prev(req)
@@ -243,9 +273,44 @@ async function draco(prev, quantization=10) {
 }
 draco.b3dm = true
 
+/// Makes all uris relative
+async function relative(prev) {
+  const original = new Map()
+  const master = await prev(masterUrl)
+  const remote = Cache(async (uri) => {
+    const responseType = uri.endsWith(".json") ? 'json' : 'buffer'
+    return await got(uri, {responseType, resolveBodyOnly: true})
+  })
+
+  for (const node of nodes(master.root)) {
+    const content = node.content || {}
+    const key = content.url ? "url" : "uri"
+    const uri = content[key]
+    if (uri) {
+      const extension = path.extname(uri)
+      const name = `${original.size}${extension}`
+      original.set(name, uri)
+      content[key] = name
+    }
+  }
+  
+  return async(req) => {
+    if (req == masterUrl) {
+      return master
+    }
+    const uri = original.get(req)
+    if (uri.match(/^https?:\/\//)) {
+      return remote(uri)
+    }
+    return prev(req)
+  }
+}
+relative.json = relative.b3dm = true
+
 /// Splits the tileset into a master tileset.json and a number of child tilesets
 /// the cuts are automatic so that the root and all child files contain roughly the same number of nodes
-async function split(prev, splitCount=1, name="tileset.json") {
+async function split(prev, splitCount=1) {
+  optionalLog(new Date(), "Initialize split")
   let num = 1
   const minions = []
 
@@ -257,7 +322,7 @@ async function split(prev, splitCount=1, name="tileset.json") {
     }
     if (node.content) {
       root = {
-        boundingVolume: root.boundingVolume,
+        boundingVolume: jsonClone(root.boundingVolume),
         geometricError: root.geometricError,
         children: [root]
       }
@@ -273,57 +338,87 @@ async function split(prev, splitCount=1, name="tileset.json") {
     if (!node.children || !node.children.length) {
       return 1
     }
-    const sizes = node.children.map(child => prune(child, maxSize))
-    for (let i=0; i<sizes.length; i++) {
-      if (sizes[i] > maxSize) {
-        const child = node.children[i]
-        child.content = {url: subTileset(child)}
+    const sizes = node.children.map(child => {
+      const size = prune(child, maxSize)
+      if (size >= maxSize) {
+        child.content = {url: subTileset(jsonClone(child))}
         delete child.children
-        sizes[i] = 1
+        return 1
       }
-    }
+      return size
+    })
     return sizes.reduce((a, b) => a + b, 0)
   }
 
-  const master = await prev(name)
+  const master = await prev(masterUrl)
   const origCount = leaves(master.root).length
   const maxSize = Math.pow(origCount, 1 / (splitCount + 1))
   prune(master.root, maxSize)
-  //console.log(`maxSize: ${maxSize} nodes, master leaves: ${leaves(master.root).length} from original ${origCount}`)
+  optionalLog(new Date(), `maxSize: ${maxSize} nodes, master leaves: ${leaves(master.root).length} from original ${origCount}`)
 
   return async(req) => {
     const match = req.match(/(\d+).json/)
     if (!match) {
       // TODO what's up with the tileset naming?
-      if (req == "tileset.json") {
+      if (req == masterUrl) {
+        optionalLog("split return master from", req)
         return master
       }
+      optionalLog("split missed", req)
       return await prev(req)
     }
     const num = Number(match[1])
+    optionalLog(`split return minions[${num - 1}]`, req)
     return minions[num - 1]
   }
 }
 split.json = true
 
-/// No-operation. The tileset is passed without a change.
-function v(prev, req) {
+/// Enable verbose log. The tileset is passed without a change.
+function v(prev, verbosity=true) {
+  verbose = verbosity
+  optionalLog("logging enabled")
+  return prev // the return value will never be used
 }
 
-const filters = { draco, exponential, fetch, growRoot, quickTree, split, src }
+/// Remove the "version" attribute from the asset
+function stripVersion(prev) {
+  return async(req) => {
+    const result = await prev(req)
+    delete result.asset.version
+    return result
+  }
+}
+stripVersion.json = true
+
+const filters = { draco, exponential, fetch, growRoot, quickTree, relative, split, src, stripVersion, v }
 
 function enabled(filter, req) {
   return (isTileset(req)) ? filter.json : filter.b3dm
 }
 
-async function buildPipeline(operations, source) {
-  for (const [name, ...args] of operations) {
-    const filter = filters[name]
-    const prev = source
-    const modify = await filter(prev, ...args)
-    source = (target) => enabled(filter, target) ? modify(target) : prev(target)
+const buildPipeline = Cache(async (operations) => {
+  if (!operations.length) {
+    return
   }
-  return source
-}
+  optionalLog("build", operations)
+  const [name, ...args] = operations.pop()
+  const filter = filters[name]
+  const prev = await buildPipeline(operations)
+  if (!filter) {
+    console.error("Could not find filter", name)
+    return prev
+  }
+  const modify = await filter(prev, ...args)
+  return (target) => enabled(filter, target) ? modify(target) : prev(target)
+})
 
-module.exports = buildPipeline
+module.exports = async(...args) => {
+  optionalLog("build", ...args)
+  const result = await buildPipeline(...args)
+  optionalLog("done", ...args)
+  return (...request) => {
+    optionalLog("request", ...request)
+    return result(...request)
+  }
+}
