@@ -18,6 +18,10 @@ function isRelative(uri) {
   return uri && !uri.match(/^\w+:\//)
 }
 
+function tryParseNumber(value) {
+  return (isNaN(value) || value == "") ? value : Number(value)
+}
+
 // collect content from all nodes
 async function listFiles(tileset, pipeline) {
   const result = []
@@ -54,6 +58,6 @@ async function main(operations, destination) {
 }
 
 const destination = process.argv.pop()
-const operations = process.argv.slice(2).map(code => code.split(/=|:|%3A/))
+const operations = process.argv.slice(2).map(code => code.split(/=|:|%3A/).map(tryParseNumber))
 
 main(operations, destination).then(process.exit)
