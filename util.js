@@ -23,5 +23,13 @@ module.exports = {
 
   jsonClone(obj) {
     return JSON.parse(JSON.stringify(obj))
-  }
+  },
+
+  isRelative(uri) {
+    return uri && !uri.match(/^\w+:\//)
+  },
+  
+  tryParseNumber(value) {
+    return (isNaN(value) || value == "") ? value : Number(value)
+  },
 }

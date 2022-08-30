@@ -2,6 +2,7 @@ const fs = require("fs")
 const fsp = fs.promises
 const path = require("path")
 const buildPipeline = require("./filters")
+const { isRelative, isTileset, tryParseNumber } = require("./util")
 
 // USAGE: node filterTool.js src:(source) (filter:option[:option...]) [...] (destination)
 // loads the (source) tileset, processes it through all the listed filters and stores the result in (destination)
@@ -14,14 +15,6 @@ function contentUri(node) {
   return content.uri || content.url
 }
 
-function isRelative(uri) {
-  return uri && !uri.match(/^\w+:\//)
-}
-
-function tryParseNumber(value) {
-  return (isNaN(value) || value == "") ? value : Number(value)
-}
-
 // collect content from all nodes
 async function listFiles(tileset, pipeline) {
   const result = []
@@ -31,6 +24,10 @@ async function listFiles(tileset, pipeline) {
     const uri = contentUri(node)
     if (isRelative(uri)) {
       result.push(uri)
+      if (isTileset(uri)) {
+        const child = await pipeline(uri)
+        remaining.push(child.root)
+      }
     }
     remaining.push(...(node.children || []))
   }

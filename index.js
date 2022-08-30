@@ -3,7 +3,7 @@ const express = require("express")
 const cors = require("cors")
 const Cache = require("./microdb")
 const buildPipeline = require("./filters")
-const { isTileset, jsonClone, urlDirname } = require("./util")
+const { isTileset, jsonClone, urlDirname, tryParseNumber } = require("./util")
 
 // USAGE: node index.js (baseUrl) [(port)]
 // creates a proxy for the (baseUrl) tileset folder
@@ -15,10 +15,6 @@ const port = process.argv[3] || process.env.PORT || 3000
 
 const app = express()
 app.use(cors())
-
-function tryParseNumber(value) {
-  return (isNaN(value) || value == "") ? value : Number(value)
-}
 
 function getParams(req) {
   const query = url.parse(req.url).query
