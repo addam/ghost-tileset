@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+<style>
+.hidden {
+    display: none;
+}
+
+</style>
+<script>
+gel = id => document.getElementById(id);
+qs = selector => document.querySelector(selector);
+qsa = selector => document.querySelectorAll(selector);
+
+function removeChildren(node) {
+  for (const child of Array.from(node.childNodes)) {
+    child.remove();
+  }
+}
+
+function cel(name, parameters={}) {
+  const element = document.createElement(name);
+  for (const param in parameters) {
+    if (param === "class") {
+      for (const cls of parameters[param].split(" ")) {
+        element.classList.add(cls);
+      }
+    } else if (param.startsWith("data-")) {
+      element.dataset[param.substring(5)] = parameters[param];
+    } else {
+      element[param] = parameters[param];
+    }
+  }
+  return element;
+}
+
+async function jsonFetch(url, method, body) {
+  const params = { method: method || "GET", headers: { 'Accept': 'application/json' } };
+  if (body !== undefined) {
+    params.headers['Content-Type'] = 'application/json';
+    params.body = JSON.stringify(body);
+  }
+  const response = await fetch(`/api/${url}`, params);
+  return response.json();
+}
+
+function sandcastleCompress(code, hml) {
+  const data = [code, html];
+  var jsonString = JSON.stringify(data);
+  jsonString = jsonString.slice(2, jsonString.length - 2);
+  var base64String = btoa(pako.deflate(jsonString, { raw: true, to: "string", level: 9 }));
+  base64String = base64String.replace(/\=+$/, ""); // remove padding
+  return base64String;
+}
+
+function getLink() {
+  const code = `
+    const viewer = new Cesium.Viewer("cesiumContainer", {
+      terrainProvider: Cesium.createWorldTerrain(),
+      requestRenderMode: true
+    });
+    viewer.scene.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(8.3, 47.0, 1e3),
+      orientation: new Cesium.HeadingPitchRoll.fromDegrees(0, -20, 0),
+      endTransform: Cesium.Matrix4.IDENTITY,
+    });
+    viewer.scene.primitives.add(new Cesium.Cesium3DTileset({
+      url: "http://localhost:3000/tileset.json?quickTree&fetch&exponential:1:2:320&split"
+    }));
+    viewer.extend(Cesium.viewerCesium3DTilesInspectorMixin);
+  `;
+  const html = `
+    <style>
+      @import url(../templates/bucket.css);
+    </style>
+    <div id="cesiumContainer" class="fullSize"></div>
+    <div id="toolbar"></div>
+  `;
+  return "https://sandcastle.cesium.com/#c=" + sandcastleCompress(code, html);
+}
+</script>
+<script type="module">
+import { createApp, ref } from 'vue'
+
+createApp({
+  setup() {
+    // component logic
+    // declare some reactive state here.
+
+    return {
+      // exposed to template
+    }
+  }
+}).mount('#app')
+</script>
+</head>
+<body id="app">
+
+</body>
+</html>
