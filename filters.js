@@ -2,7 +2,8 @@ const path = require("path")
 const fsp = require("fs").promises
 const got = require("got")
 const gltfPipeline = optionalRequire("gltf-pipeline")
-const { jsonClone, urlDirname, isTileset, boundingRegion } = require("./util")
+const { jsonClone, isTileset, boundingRegion } = require("./util")
+const { gdbToB3dm, swisstopoBoundingRegion, LocalCoordinates } = require("../convert-tileset/app")
 const Cache = require("./microdb")
 
 const masterUrl = "tileset.json"
@@ -64,8 +65,9 @@ function optionalJson(req, data) {
   return isTileset(req) ? JSON.parse(data) : data
 }
 
+// Read tileset from the web
 function httpFactory(protocol) {
-  function result(prev, tilesetPath) {
+  function result(_prev, tilesetPath) {
     const tilesetFile = path.basename(tilesetPath)
     const baseUrl = path.dirname(tilesetPath)
     async function src(req) {
@@ -89,7 +91,9 @@ function httpFactory(protocol) {
 const http = httpFactory("http")
 const https = httpFactory("https")
 
-async function zip(prev, baseUrl, tilesetFile) {
+// Read tileset from a local zip file
+// currently, only .7z files are supported
+async function zip(_prev, baseUrl) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'filterTool'))
 
   function _7z(req) {
@@ -114,7 +118,8 @@ async function zip(prev, baseUrl, tilesetFile) {
 }
 zip.json = zip.b3dm = true
 
-async function file(prev, tilesetPath) {
+// Read tileset from a local file
+async function file(_prev, tilesetPath) {
   const tilesetFile = path.basename(tilesetPath)
   const baseUrl = path.dirname(tilesetPath)
   return async(req) => {
@@ -126,6 +131,41 @@ async function file(prev, tilesetPath) {
   }
 }
 file.json = file.b3dm = true
+
+// read tileset from a local directory in the swisstopo .gdb.zip format
+async function swisstopo(_prev, baseUrl) {
+  const files = (await fsp.readdir(baseUrl)).filter(name => name.endsWith(".gdb.zip"))
+  const tileset = {
+    asset: { version: "1.0" },
+    geometricError: 500,
+    root: {
+      geometricError: 50,
+      children: files.map(name => {
+        const region = swisstopoBoundingRegion(name)
+        const frame = LocalCoordinates.fromRegion(region)
+        return {
+          boundingVolume: { region },
+          transform: frame.matrix,
+          geometricError: 0,
+          content: { uri: name.replace(/\.gdb\.zip$/, ".b3dm") }
+        }
+      })
+    }
+  }
+  tileset.root.boundingVolume = { region: boundingRegion(tileset.root.children) }
+  return async(req) => {
+    if (req == masterUrl) {
+      return tileset
+    }
+    const tileName = req.replace(/\.b3dm$/, ".gdb.zip")
+    console.log("processing", tileName)
+    const frame = LocalCoordinates.fromRegion(swisstopoBoundingRegion(tileName))
+    const data = await gdbToB3dm(path.join(baseUrl, tileName), { frame })
+    console.log("done", tileName)
+    return data
+  }
+}
+swisstopo.json = swisstopo.b3dm = true
 
 /// Collect all ancestors into a single tileset.
 /// This may be necessary as a first operation for aggregate tilesets.
@@ -377,6 +417,33 @@ async function split(prev, splitCount=1) {
 }
 split.json = true
 
+async function zshift(prev, offset) {
+  return async(req) => {
+    if (isTileset(req)) {
+      const tileset = jsonClone(await prev(req))
+      for (const node of nodes(tileset.root)) {
+        const matrix = node.transform
+        if (!matrix) {
+          continue
+        }
+        const center = matrix.slice(12, 15)
+        const norm = Math.sqrt(center.reduce((a, b) => a + b * b, 0))
+        for (let i=12; i<15; i++) {
+          matrix[i] *= 1 + offset / norm
+        }
+      }
+      return tileset
+    }
+  }
+}
+zshift.json = true
+
+/// Cache the results at this checkpoint
+async function cache(prev, maxCount=1000) {
+  return Cache(prev, maxCount)
+}
+cache.json = cache.b3dm = true
+
 /// Enable verbose log. The tileset is passed without a change.
 function v(prev, verbosity=true) {
   verbose = verbosity
@@ -394,7 +461,7 @@ function stripVersion(prev) {
 }
 stripVersion.json = true
 
-const filters = { draco, exponential, fetch, growRoot, quickTree, relative, split, http, https, zip, file, stripVersion, v }
+const filters = { draco, exponential, fetch, growRoot, quickTree, relative, split, http, https, zip, file, swisstopo, stripVersion, zshift, cache, v }
 
 function enabled(filter, req) {
   return (isTileset(req)) ? filter.json : filter.b3dm
