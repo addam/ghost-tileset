@@ -4,6 +4,7 @@ const got = require("got")
 const gltfPipeline = optionalRequire("gltf-pipeline")
 const { jsonClone, isTileset, boundingRegion } = require("./util")
 const { gdbToB3dm, swisstopoBoundingRegion, LocalCoordinates } = require("../convert-tileset/app")
+const { simplify } = require("../convert-tileset/simplify")
 const Cache = require("./microdb")
 
 const masterUrl = "tileset.json"
@@ -316,6 +317,45 @@ async function draco(prev, quantization=10) {
 }
 draco.b3dm = true
 
+// Generate simplified versions (levels of detail) of each tile
+async function lod(prev, levels=2) {
+  function createChild(node, stem, level) {
+    const amount = Math.pow(0.25, level)
+    const formatted = `${Math.round(amount * 1000)}`.padStart(3, '0')
+    const children = (level < levels) ? [createChild(node, stem, level + 1)] : []
+    return {
+      geometricError: node.geometricError * amount,
+      content: { uri: `${stem}-${formatted}.b3dm` },
+      transform: node.transform,
+      boundingVolume: jsonClone(node.boundingVolume),
+      children
+    }
+  }
+
+  return async(req) => {
+    if (isTileset(req)) {
+      const tileset = jsonClone(await prev(req))
+      for (const node of leaves(tileset.root)) {
+        if (levels > 0 && node.content && node.content.uri) {
+          const match = node.content.uri.match(/^(.*)\.b3dm$/)
+          const stem = match[1]
+          node.children = [createChild(node, stem, 1)]
+        }
+      }
+      return tileset
+    }
+    // req is something like "arbitrary-name-250.b3dm"
+    // we want to split it to "arbitrary-name.b3dm" and "250"
+    const match = req.match(/^(.*)-(\d{3})(\..*)$/)
+    const amount = match ? parseInt(match[2]) * 1e-3 : 1
+    const b3dm = await prev(match ? match[1] + match[3] : req)
+    const meshes = await b3dmToMeshes(b3dm)
+    const simplified = simplify(meshes, amount)
+    return meshesToGlb(simplified)
+  }
+}
+lod.json = lod.b3dm = true
+
 /// Makes all uris relative
 async function relative(prev) {
   const original = new Map()
@@ -455,7 +495,6 @@ async function zshift(prev, offset) {
           continue
         }
         const vector = upwards(node.boundingVolume.region, offset)
-        console.log("upwards", vector)
         for (let i=0; i<3; i++) {
           matrix[i + 12] += vector[i]
         }
@@ -489,7 +528,7 @@ function stripVersion(prev) {
 }
 stripVersion.json = true
 
-const filters = { draco, exponential, fetch, growRoot, quickTree, relative, split, http, https, zip, file, swisstopo, stripVersion, zshift, cache, v }
+const filters = { draco, exponential, fetch, growRoot, quickTree, lod, relative, split, http, https, zip, file, swisstopo, stripVersion, zshift, cache, v }
 
 function enabled(filter, req) {
   return (isTileset(req)) ? filter.json : filter.b3dm
