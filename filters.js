@@ -140,14 +140,14 @@ async function swisstopo(_prev, baseUrl) {
     geometricError: 500,
     root: {
       geometricError: 50,
-      children: files.map(name => {
-        const region = swisstopoBoundingRegion(name)
+      children: files.map(tileName => {
+        const region = swisstopoBoundingRegion(tileName)
         const frame = LocalCoordinates.fromRegion(region)
         return {
           boundingVolume: { region },
           transform: frame.matrix,
           geometricError: 0,
-          content: { uri: name.replace(/\.gdb\.zip$/, ".b3dm") }
+          content: { uri: tileName.replace(/\.gdb\.zip$/, ".b3dm") }
         }
       })
     }
@@ -417,7 +417,35 @@ async function split(prev, splitCount=1) {
 }
 split.json = true
 
+/// Shift buildings from meters above sea level to ellipsoidal height, or by a fixed offset
 async function zshift(prev, offset) {
+  // NOTE: zshift assumes that each tile has `boundingVolume.region` defined
+
+  // Conversion formula taken from "Approximate formulas for the transformation between Swiss projection coordinates and WGS84"
+  // https://www.swisstopo.admin.ch/en/knowledge-facts/surveying-geodesy/reference-frames/local/lv95.html#publikationen
+  function swissElevation(lat, lon) {
+    const lat_diff = (60 * 60 * lat - 169_028.66) / 10_000
+    const lon_diff = (60 * 60 * lon - 26_782.5) / 10_000
+    return 6.94 * lat_diff + 2.73 * lon_diff - 49.55
+  }
+
+  // derivative of WGS84 -> ECEF conversion wrt. altitude
+  function ecefUpwards(lat, lon) {
+    const sin_lat = Math.sin(lat);
+    const cos_lat = Math.cos(lat);
+    const cos_lon = Math.cos(lon);
+    const sin_lon = Math.sin(lon);
+    return [cos_lat * cos_lon, cos_lat * sin_lon, sin_lat]
+  }
+
+  function upwards(region, offset) {
+    const lat = (region[1] + region[3]) / 2
+    const lon = (region[0] + region[2]) / 2
+    const [x, y, z] = ecefUpwards(lat, lon)
+    const step = (offset === undefined || offset === 'auto') ? -swissElevation(lat * 180 / Math.PI, lon * 180 / Math.PI) : offset
+    return [x, y, z].map(c => c * step)
+  }
+
   return async(req) => {
     if (isTileset(req)) {
       const tileset = jsonClone(await prev(req))
@@ -426,10 +454,10 @@ async function zshift(prev, offset) {
         if (!matrix) {
           continue
         }
-        const center = matrix.slice(12, 15)
-        const norm = Math.sqrt(center.reduce((a, b) => a + b * b, 0))
-        for (let i=12; i<15; i++) {
-          matrix[i] *= 1 + offset / norm
+        const vector = upwards(node.boundingVolume.region, offset)
+        console.log("upwards", vector)
+        for (let i=0; i<3; i++) {
+          matrix[i + 12] += vector[i]
         }
       }
       return tileset

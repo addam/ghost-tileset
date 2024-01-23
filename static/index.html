@@ -46,29 +46,27 @@ async function jsonFetch(url, method, body) {
   return response.json();
 }
 
-function sandcastleCompress(code, hml) {
+function sandcastleCompress(code, html) {
   const data = [code, html];
-  var jsonString = JSON.stringify(data);
-  jsonString = jsonString.slice(2, jsonString.length - 2);
-  var base64String = btoa(pako.deflate(jsonString, { raw: true, to: "string", level: 9 }));
-  base64String = base64String.replace(/\=+$/, ""); // remove padding
-  return base64String;
+  const jsonString = JSON.stringify(data).substring(1, JSON.stringify(data).length - 1);
+  const base64String = btoa(pako.deflate(jsonString, { raw: true, to: "string", level: 9 }));
+  return base64String.replace(/\=+$/, ""); // remove padding
 }
 
 function getLink() {
   const code = `
     const viewer = new Cesium.Viewer("cesiumContainer", {
-      terrainProvider: Cesium.createWorldTerrain(),
-      requestRenderMode: true
+      terrainProvider: await Cesium.createWorldTerrainAsync(),
+      requestRenderMode: true,
     });
     viewer.scene.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(8.3, 47.0, 1e3),
       orientation: new Cesium.HeadingPitchRoll.fromDegrees(0, -20, 0),
       endTransform: Cesium.Matrix4.IDENTITY,
     });
-    viewer.scene.primitives.add(new Cesium.Cesium3DTileset({
-      url: "http://localhost:3000/tileset.json?quickTree&fetch&exponential:1:2:320&split"
-    }));
+    viewer.scene.primitives.add(await Cesium.Cesium3DTileset.fromUrl(
+      "http://localhost:3000/tileset.json?cache&zshift"
+    ));
     viewer.extend(Cesium.viewerCesium3DTilesInspectorMixin);
   `;
   const html = `
@@ -80,23 +78,14 @@ function getLink() {
   `;
   return "https://sandcastle.cesium.com/#c=" + sandcastleCompress(code, html);
 }
-</script>
-<script type="module">
-import { createApp, ref } from 'vue'
 
-createApp({
-  setup() {
-    // component logic
-    // declare some reactive state here.
-
-    return {
-      // exposed to template
-    }
-  }
-}).mount('#app')
+window.onload = () => {
+  qs("a").href = getLink();
+}
 </script>
+<!-- <script src=" https://cdn.jsdelivr.net/npm/pako/dist/pako.min.js "></script> -->
 </head>
-<body id="app">
-
+<body>
+  <a href="https://sandcastle.cesium.com/#c=bZLdbtNAEIVfZeUL5EpmbUglkEkLKEEiF0FVsUBIvtmuJ/XAetfMjJO0Fe/OOiYokXrjn5n55pyjXRs8i9oi7IDUlfKwUwtgHDr97VBL68Qe/hfBi0EPVCeZeqq9UgJEsXJDYYsNUKnMzqAccUtgBL4Hck01DX7kB2/Ti2xkCX4PwHILPpLr0ECphAaIvT8X72o/+dFswYO2pgMymkFGS+lBu4kweiMYfHlUXBiS+GX8TG8odEu4JwBO3+pZpi7f6CJTr2A2yQdCiHEm/CTzZzAN+vsbFNveBufOFsUFL1/HRzHtiNYrMp43gbr/HtZGCPeXerX89KVaVT+eDdQTdii4BdamadIT/ek1W1boIOadsg7kSlUnrUhf5rkL1rg2sJSzoihymSb1Tw7+vTW2hReP3OJG6mSUPtGGvUTL6T+lqXimt/Lcg5VAa9yjH8kkS+YsDw6uRx8fsOsDyegn1ToX6HoXj5jzu8H+ihYs8wjN8yMyb3CrsLl65gop6wxz7GwG577iI9TJ9TyP82eYhODuDJ30/gI">View in Sandcastle</a>
 </body>
 </html>
