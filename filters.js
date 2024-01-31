@@ -8,6 +8,7 @@ const { simplify } = require("../convert-tileset/simplify")
 const Cache = require("./microdb")
 
 const masterUrl = "tileset.json"
+const cacheDir = "cache"
 
 let verbose = false
 function optionalLog(...args) {
@@ -159,10 +160,10 @@ async function swisstopo(_prev, baseUrl) {
       return tileset
     }
     const tileName = req.replace(/\.b3dm$/, ".gdb.zip")
-    console.log("processing", tileName)
+    optionalLog("processing", tileName)
     const frame = LocalCoordinates.fromRegion(swisstopoBoundingRegion(tileName))
     const data = await gdbToB3dm(path.join(baseUrl, tileName), { frame })
-    console.log("done", tileName)
+    optionalLog("done", tileName)
     return data
   }
 }
@@ -509,8 +510,58 @@ async function zshift(prev, offset) {
 zshift.json = true
 
 /// Cache the results at this checkpoint
-async function cache(prev, maxCount=1000) {
-  return Cache(prev, maxCount)
+async function cache(prev, sizeLimit="50M", persistent=true) {
+  function parseSize(size) {
+    const base = parseFloat(size)
+    const index = "kMGT".indexOf(size.slice(-1))
+    return base * Math.pow(1024, index + 1)
+  }
+
+  async function cacheFile(file, data) {
+    const buffer = (data.write) ? data : JSON.stringify(data)
+    const size = buffer.length
+    totalSize += size
+    fileSize.push({ file, size })
+    while (totalSize > sizeLimit) {
+      const oldest = fileSize.shift()
+      totalSize -= oldest.size
+      optionalLog("cache evict", oldest.file)
+      await fsp.unlink(path.join(directory, oldest.file))
+    }
+    await fsp.writeFile(path.join(directory, file), buffer)
+  }
+
+  sizeLimit = parseSize(sizeLimit)
+  if (!persistent) {
+    return Cache(prev, sizeLimit)
+  }
+  const directory = path.join(cacheDir, prev.operations)
+  await fsp.mkdir(directory, { recursive: true })
+  const fileSize = []
+  for (const file of await fsp.readdir(directory)) {
+    fileSize.push({
+      file,
+      size: (await fsp.stat(path.join(directory, file))).size
+    })
+  }
+  let totalSize = fileSize.reduce((a, b) => a + b.size, 0)
+  optionalLog("cache", directory, totalSize / (1<<20), fileSize.length)
+
+  return async(req) => {
+    const filepath = path.join(directory, req)
+    try {
+      const data = await fsp.readFile(filepath)
+      if (isTileset(req)) {
+        return JSON.parse(data)
+      }
+      return data
+    } catch {
+      optionalLog("cache miss", filepath)
+      const data = await prev(req)
+      cacheFile(req, data)  // no await here, just fire and forget
+      return data
+    }
+  }
 }
 cache.json = cache.b3dm = true
 
@@ -543,10 +594,14 @@ const buildPipeline = Cache(async (operations) => {
   }
   optionalLog("build", operations)
   const [name, ...args] = operations.pop()
+  const codedOps = operations.map((args) => args.join(":")).join("&")
   const filter = filters[name]
   const prev = await buildPipeline(operations)
+  if (prev) {
+    prev.operations = codedOps
+  }
   if (!filter) {
-    console.error("Could not find filter", name)
+    console.error(`Could not find filter ${name}, exiting pipeline at this point`)
     return prev
   }
   const modify = await filter(prev, ...args)

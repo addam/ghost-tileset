@@ -38,7 +38,7 @@ The tiles must have their original names.
 
 ## cache:(size limit=50M)
 
-Store all requested data in a `cache` directory.
+Pass all data unchanged, and store it in a persistent `cache` directory.
 
 Besides speeding up repeated requests, this filter effectively creates a usable copy of the dataset at a given checkpoint.
 
