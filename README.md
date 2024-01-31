@@ -36,6 +36,12 @@ The second parameter specifies the file name to be loaded from within the archiv
 Read swisstopo tiles in GeoDatabase `.gdb.zip` format.
 The tiles must have their original names.
 
+## cache:(size limit=50M)
+
+Store all requested data in a `cache` directory.
+
+Besides speeding up repeated requests, this filter effectively creates a usable copy of the dataset at a given checkpoint.
+
 ## fetch:(limit)
 
 Collect all ancestors into a single tileset.
