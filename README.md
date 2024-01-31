@@ -25,11 +25,16 @@ All files are cached to make reloads as fast as possible.
 Local data source.
 For example: `file:/home/data/my-tileset.json`
 
-# zip:(zip file):(tileset.json file)
+## zip:(zip file):(tileset.json file)
 
 Read content of an archive.
 Currently, only 7z archives are supported.
 The second parameter specifies the file name to be loaded from within the archive.
+
+## swisstopo:(directory)
+
+Read swisstopo tiles in GeoDatabase `.gdb.zip` format.
+The tiles must have their original names.
 
 ## fetch:(limit)
 
@@ -58,6 +63,16 @@ Each inner node will have `2**compressLevels` children, all of roughly the same 
 On each level, the nodes are sorted by `x` or `y` coordinate of their bounding boxes (always choosing the longer dimension of the whole set) and split into two halves at the median.
 Afterwards, every `compressLevels` consecutive levels are compressed into a node.
 
+## lod:(levels=2):(factor:0.25)
+
+Generate several levels of detail of each tile.
+Structure of the tileset is preserved, so the content of leaf nodes may get merged in upper nodes.
+
+Each building (connected component) within a tile is simplified on its own.
+Firstly, its floor plan is estimated from all the vertices.
+Then, boundary vertices are iteratively removed where this removal causes least error.
+Simplification continues until the count of vertices decreases by a given factor.
+
 ## draco
 
 Process all `b3dm` content using Draco compression.
@@ -83,6 +98,13 @@ All data is passed intact.
 ## stripVersion
 
 Remove the "version" entry from the tileset.
+
+# zshift:(distance=auto)
+
+Translates each tile upwards by the given distance.
+
+If distance equals `auto` or is not defined, each tile is shifted from EPSG:2056 meters above sea level to WGS84 ellipsoidal height.
+The shift is computed in the center point of each tile.
 
 # command line tools
 
