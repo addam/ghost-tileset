@@ -349,6 +349,9 @@ async function lod(prev, levels=2) {
     const match = req.match(/^(.*)-(\d{3})(\..*)$/)
     const amount = match ? parseInt(match[2]) * 1e-3 : 1
     const b3dm = await prev(match ? match[1] + match[3] : req)
+    if (amount == 1) {
+      return b3dm
+    }
     const meshes = await b3dmToMeshes(b3dm)
     const simplified = simplify(meshes, amount)
     return meshesToGlb(simplified)
