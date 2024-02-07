@@ -4,9 +4,11 @@ const os = require("os")
 const got = require("got")
 const gltfPipeline = optionalRequire("gltf-pipeline")
 const { jsonClone, isTileset, boundingRegion } = require("./util")
-const { gdbToB3dm, swisstopoBoundingRegion, LocalCoordinates, swisstopoAllTiles, swisstopoTileUrl } = require("../convert-tileset/app")
-const { simplify } = require("../convert-tileset/simplify")
 const Cache = require("./microdb")
+
+// requires the convert-tileset tool copied here; comment out if not available
+const { gdbToB3dm, swisstopoBoundingRegion, LocalCoordinates, swisstopoAllTiles, swisstopoTileUrl } = require("./app")
+const { simplify } = require("./simplify")
 
 const masterUrl = "tileset.json"
 const cacheDir = "cache"
@@ -136,8 +138,8 @@ async function file(_prev, tilesetPath) {
 file.json = file.b3dm = true
 
 // read tileset from a local directory in the swisstopo .gdb.zip format
-async function swisstopo(_prev, baseUrl) {
-  const readFromWeb = (baseUrl === undefined)
+async function swisstopo(_prev, baseUrl = "auto") {
+  const readFromWeb = (baseUrl === "auto")
   const files = (readFromWeb
     ? swisstopoAllTiles()
     : (await fsp.readdir(baseUrl)).filter(name => name.endsWith(".gdb.zip"))
@@ -493,11 +495,8 @@ async function zshift(prev, offset) {
 
   // derivative of WGS84 -> ECEF conversion wrt. altitude
   function ecefUpwards(lat, lon) {
-    const sin_lat = Math.sin(lat);
     const cos_lat = Math.cos(lat);
-    const cos_lon = Math.cos(lon);
-    const sin_lon = Math.sin(lon);
-    return [cos_lat * cos_lon, cos_lat * sin_lon, sin_lat]
+    return [cos_lat * Math.cos(lon), cos_lat * Math.sin(lon), Math.sin(lat)]
   }
 
   function upwards(region, offset) {

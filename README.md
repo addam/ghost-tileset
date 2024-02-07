@@ -31,25 +31,27 @@ Read content of an archive.
 Currently, only 7z archives are supported.
 The second parameter specifies the file name to be loaded from within the archive.
 
-## swisstopo:(directory)
+## swisstopo:(directory=auto)
 
 Read swisstopo tiles in GeoDatabase `.gdb.zip` format.
 The tiles must have their original names.
 
-## cache:(size limit=50M)
+This requires having the `convert-tileset` tool installed.
+
+## cache:(limit=50M)
 
 Pass all data unchanged, and store it in a persistent `cache` directory.
 
 Besides speeding up repeated requests, this filter effectively creates a usable copy of the dataset at a given checkpoint.
 
-## fetch:(limit)
+## fetch:(limit=-1)
 
 Collect all ancestors into a single tileset.
 This may be necessary as a first operation for aggregate tilesets.
 Relative urls are correctly updated.
 If `limit` is set, only this number of ancestors are unpacked, leaving the rest intact.
 
-## exponential:(base):(factor):(jsonLeaf)
+## exponential:(base=1):(factor=2):(jsonLeaf=160)
 
 Assign `geometricError` to each tile based on the subtree depth.
 Geometric error will be `jsonLeaf` at leaf nodes with JSON content and `base * factor**depth` otherwise.
@@ -61,7 +63,7 @@ Create a new root node.
 This new node has the original root as its only child and its geometric error is set as specified by the parameter.
 Sometimes, Cesium appears not to load aggregate tilesets correctly without this filter.
 
-## quickTree:(compressLevels)
+## quickTree:(compressLevels=3)
 
 Dump all inner nodes and recreate the tileset from leaf nodes.
 Each inner node will have `2**compressLevels` children, all of roughly the same size.
@@ -69,7 +71,7 @@ Each inner node will have `2**compressLevels` children, all of roughly the same 
 On each level, the nodes are sorted by `x` or `y` coordinate of their bounding boxes (always choosing the longer dimension of the whole set) and split into two halves at the median.
 Afterwards, every `compressLevels` consecutive levels are compressed into a node.
 
-## lod:(levels=2):(factor:0.25)
+## lod:(levels=2):(factor=0.25)
 
 Generate several levels of detail of each tile.
 Structure of the tileset is preserved, so the content of leaf nodes may get merged in upper nodes.
@@ -79,10 +81,12 @@ Firstly, its floor plan is estimated from all the vertices.
 Then, boundary vertices are iteratively removed where this removal causes least error.
 Simplification continues until the count of vertices decreases by a given factor.
 
-## draco
+## draco:(quantization=10)
 
 Process all `b3dm` content using Draco compression.
 Requires [gltf-pipeline](https://www.npmjs.com/package/gltf-pipeline) to be installed. The resulting files will be stored in their paths relatively to the destination directory so they will be overwritten if source and destination directory is the same.
+
+The `quantization` parameter configures several settings of gltf-pipeline at once to keep you away from the mess.
 
 ## relative
 
@@ -90,7 +94,7 @@ Make urls relative.
 All content will be accessible like `number`.`originalExtension`, where `number` is sequential enumeration starting from zero.
 When using filterTool to download a remote resource, this filter effectively causes the content to be downloaded too.
 
-## split
+## split:(splitCount=1)
 
 Splits the tileset into a master tileset.json and a number of child tilesets.
 The cuts are automatic so that the root and all child files contain roughly the same number of nodes.
@@ -105,7 +109,7 @@ All data is passed intact.
 
 Remove the "version" entry from the tileset.
 
-# zshift:(distance=auto)
+## zshift:(distance=auto)
 
 Translates each tile upwards by the given distance.
 
