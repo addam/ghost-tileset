@@ -1,9 +1,10 @@
 const path = require("path")
 const fsp = require("fs").promises
+const os = require("os")
 const got = require("got")
 const gltfPipeline = optionalRequire("gltf-pipeline")
 const { jsonClone, isTileset, boundingRegion } = require("./util")
-const { gdbToB3dm, swisstopoBoundingRegion, LocalCoordinates } = require("../convert-tileset/app")
+const { gdbToB3dm, swisstopoBoundingRegion, LocalCoordinates, swisstopoAllTiles, swisstopoTileUrl } = require("../convert-tileset/app")
 const { simplify } = require("../convert-tileset/simplify")
 const Cache = require("./microdb")
 
@@ -96,7 +97,7 @@ const https = httpFactory("https")
 // Read tileset from a local zip file
 // currently, only .7z files are supported
 async function zip(_prev, baseUrl) {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'filterTool'))
+  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'filterTool_zip'))
 
   function _7z(req) {
     return new Promise((resolve, reject) => {
@@ -136,7 +137,14 @@ file.json = file.b3dm = true
 
 // read tileset from a local directory in the swisstopo .gdb.zip format
 async function swisstopo(_prev, baseUrl) {
-  const files = (await fsp.readdir(baseUrl)).filter(name => name.endsWith(".gdb.zip"))
+  const readFromWeb = (baseUrl === undefined)
+  const files = (readFromWeb
+    ? swisstopoAllTiles()
+    : (await fsp.readdir(baseUrl)).filter(name => name.endsWith(".gdb.zip"))
+    )
+  if (readFromWeb) {
+    baseUrl = await fsp.mkdtemp(path.join(os.tmpdir(), 'filterTool_swisstopo'))
+  }
   const tileset = {
     asset: { version: "1.0" },
     geometricError: 500,
@@ -162,7 +170,17 @@ async function swisstopo(_prev, baseUrl) {
     const tileName = req.replace(/\.b3dm$/, ".gdb.zip")
     optionalLog("processing", tileName)
     const frame = LocalCoordinates.fromRegion(swisstopoBoundingRegion(tileName))
-    const data = await gdbToB3dm(path.join(baseUrl, tileName), { frame })
+    const file = path.join(baseUrl, tileName)
+    if (readFromWeb) {
+      const url = swisstopoTileUrl(tileName)
+      optionalLog("fetch", url)
+      const gdb = await got(url, { responseType: 'buffer', resolveBodyOnly: true })
+      await fsp.writeFile(file, gdb)
+    }
+    const data = await gdbToB3dm(file, { frame })
+    if (readFromWeb) {
+      fsp.unlink(file)
+    }
     optionalLog("done", tileName)
     return data
   }
